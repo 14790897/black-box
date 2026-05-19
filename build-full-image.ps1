@@ -7,7 +7,7 @@
 $IMAGE_NAME = "ShadowUbuntu"
 $INSTALL_DIR = "C:\TempSandbox\ActiveInstance"
 $ROOTFS_DIR = "C:\TempSandbox\ubuntu_rootfs"
-$TAR_PATH = "$ROOTFS_DIR\install.tar.gz"
+$TAR_PATH = "$ROOTFS_DIR\jammy-server-cloudimg-amd64-root.tar.xz"
 
 # Create directories
 mkdir C:\TempSandbox -Force | Out-Null

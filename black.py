@@ -4,7 +4,8 @@ import time
 
 # ================= 测试配置 =================
 SANDBOX_NAME = "ShadowDebianTest"                       # 独立的沙箱实例名称
-ROOTFS_TAR_GZ = r"C:\TempSandbox\debian_rootfs\install.tar.gz"  # 刚才下载的官方底座路径
+# ROOTFS_TAR_GZ = r"C:\TempSandbox\debian_rootfs\install.tar.gz"  # 轻便版本，无curl
+ROOTFS_TAR_GZ = r"C:\TempSandbox\ubuntu_rootfs\jammy-server-cloudimg-amd64-root.tar.xz"  # 支持 .xz 格式
 SANDBOX_DIR = r"C:\TempSandbox\ActiveInstance"          # 沙箱虚拟硬盘（.vhdx）存放地
 # ============================================
 
