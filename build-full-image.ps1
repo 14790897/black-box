@@ -34,19 +34,23 @@ wsl --import __temp_build $INSTALL_DIR $TAR_PATH --version 2 2>&1 | Out-Null
 
 # Step 3: Install tools inside sandbox
 Write-Host "Installing common tools..." -ForegroundColor Yellow
+
+# 使用 Base64 编码传递脚本，避免换行符问题
 $setup_script = @'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 
 echo "Updating package sources..."
-apt-get update -qq
+sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+apt-get update
 
 echo "Installing base tools..."
-apt-get install -y -qq curl wget git vim nano htop tmux python3 python3-pip build-essential gcc g++ make net-tools iputils-ping dnsutils openssh-server openssl zip unzip tar gzip bzip2 tree jq rsync html2text ca-certificates apt-transport-https
+apt-get install -y curl wget git vim nano htop tmux python3 python3-pip build-essential gcc g++ make net-tools iputils-ping dnsutils openssh-server openssl zip unzip tar gzip bzip2 tree jq rsync html2text ca-certificates apt-transport-https
 
 echo "Installing Node.js..."
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt-get install -y -qq nodejs
+apt-get install -y nodejs
 
 echo "Cleaning up..."
 apt-get clean
@@ -55,8 +59,12 @@ rm -rf /var/lib/apt/lists/*
 echo "Setup completed"
 '@
 
-$setup_script | Out-File -FilePath "C:\TempSandbox\setup.sh" -Encoding utf8
-Get-Content "C:\TempSandbox\setup.sh" | wsl -d __temp_build -- bash
+# 将脚本编码为 Base64 避免换行符问题
+$bytes = [System.Text.Encoding]::UTF8.GetBytes($setup_script)
+$base64 = [Convert]::ToBase64String($bytes)
+
+# 通过 Base64 传递脚本到 WSL
+wsl -d __temp_build -- bash -c "echo '$base64' | base64 -d | bash"
 
 # Step 4: Export configured image
 Write-Host "`n[4/4] Exporting configured image..." -ForegroundColor Cyan

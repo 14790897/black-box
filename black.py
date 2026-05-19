@@ -5,7 +5,8 @@ import time
 # ================= 测试配置 =================
 SANDBOX_NAME = "ShadowDebianTest"                       # 独立的沙箱实例名称
 # ROOTFS_TAR_GZ = r"C:\TempSandbox\debian_rootfs\install.tar.gz"  # 轻便版本，无curl
-ROOTFS_TAR_GZ = r"C:\TempSandbox\ubuntu_rootfs\jammy-server-cloudimg-amd64-root.tar.xz"  # 支持 .xz 格式
+# ROOTFS_TAR_GZ = r"C:\TempSandbox\ubuntu_rootfs\jammy-server-cloudimg-amd64-root.tar.xz"  # 支持 .xz 格式
+ROOTFS_TAR_GZ = r"C:\TempSandbox\full_image\ubuntu-full.tar.gz"  # 支持 .gz 格式
 SANDBOX_DIR = r"C:\TempSandbox\ActiveInstance"          # 沙箱虚拟硬盘（.vhdx）存放地
 # ============================================
 
@@ -94,7 +95,8 @@ if __name__ == "__main__":
         echo "=== 🕸️  网页爬取测试 ==="
         echo "准备安装必要工具..."
         sed -i '/bullseye-backports/d' /etc/apt/sources.list
-        DEBIAN_FRONTEND=noninteractive apt-get update 2>/dev/null && DEBIAN_FRONTEND=noninteractive apt-get install curl html2text -y 2>/dev/null
+        # If it is a minimal image without curl and html2text, we can install them first. If it is a full image, this step will be skipped because they are already included.
+        # DEBIAN_FRONTEND=noninteractive apt-get update 2>/dev/null && DEBIAN_FRONTEND=noninteractive apt-get install curl html2text -y 2>/dev/null
         
         echo ""
         echo "7. 爬取百度首页标题:"
