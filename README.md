@@ -37,25 +37,59 @@ python black.py
 
 | 文件 | 用途 |
 |------|------|
-| `black.py` | 主程序：创建沙箱 → 执行命令 → 销毁沙箱 |
+| `black.py` / `aisandbox.py` | 主程序 (WSL 版)：创建沙箱 → 执行命令 → 销毁沙箱 |
+| `hyperv_sandbox.py` | 主程序 (Hyper-V 版)：基于差异磁盘创建 Hyper-V 沙箱 → 通过 PowerShell Direct 注入执行 → 销毁沙箱 |
 | `install-debian.ps1` | 自动下载并安装 Debian WSL 发行版 |
 | `build-full-image.ps1` | 构建预配置的完整 Ubuntu 镜像（含常用工具） |
+
+## Hyper-V 版本 (Windows)
+
+新增了针对 Hyper-V 环境的 `hyperv_sandbox.py`，主要用于运行 Windows 或支持 PowerShell Direct 的 Linux 镜像。它使用**差异磁盘 (Differencing Disk)** 技术，可以实现秒级创建虚拟机，用完即焚。
+
+### Hyper-V 配置
+编辑 `hyperv_sandbox.py` 中的配置：
+```python
+BASE_VHDX = r"C:\TempSandbox\base_image\windows_base.vhdx" # 你的基础 VHDX 镜像
+VM_USER = "Administrator" # 虚拟机内的用户名
+VM_PASS = "123456"        # 虚拟机内的密码
+```
+*注：Hyper-V 版必须使用**管理员权限**的终端运行。*
 
 ## 使用流程
 
 1. **准备镜像**：运行 `install-debian.ps1` 下载官方 Debian 镜像
 2. **配置路径**：更新 `black.py` 中的 `ROOTFS_TAR_GZ` 路径
-3. **执行测试**：运行 `python black.py`
-4. **自动清理**：程序执行完毕后自动销毁沙箱
+3. **执行测试**：运行 `python black.py` 进入交互式环境，或使用命令行参数执行。
+
+### 命令行参数
+你可以通过传参灵活控制沙箱行为：
+- `python black.py`：进入交互式 REPL，直接输入 Linux 指令（输入 `multiline` 可执行多行，`exit` 退出）。
+- `python black.py -c "<指令>"`：执行单条指令并自动销毁沙箱。
+- `python black.py -f <文件路径>`：执行本地脚本文件并自动销毁。
+- `python black.py --keep`：执行完毕后保留沙箱，不自动销毁。
+- `python black.py --cleanup`：强制清理现存的沙箱。
 
 ## 测试样例
 
-默认测试脚本包含：
-- 系统信息收集（发行版、内核、CPU、内存）
-- 网络接口检测
-- 网页爬取测试（百度首页）
-- HTTP 响应头分析
-- 外部 API 调用测试
+通过交互式模式：
+```bash
+$ python black.py
+
+[🤖] AI 虚拟环境已就绪 (交互模式)。
+当前在隔离的沙箱环境中，文件系统修改会保留，直至沙箱销毁。
+输入指令执行，或输入 'exit'、'quit' 退出。输入 'multiline' 开启多行输入。
+AI-Env > uname -a
+Linux WIN-PC 5.15.133.1-microsoft-standard-WSL2 #1 SMP Thu Aug 24 16:11:16 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux
+AI-Env > exit
+
+[3/4] 触发用完即焚机制，正在注销沙箱...
+[+] 影子沙箱已注销，对应的虚拟硬盘已被 Windows 彻底粉碎。
+```
+
+或者单条指令执行：
+```bash
+python black.py -c "cat /etc/os-release"
+```
 
 ## 注意事项
 

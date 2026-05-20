@@ -64,70 +64,77 @@ def destroy_sandbox():
     print("[+] 影子沙箱已注销，对应的虚拟硬盘已被 Windows 彻底粉碎。")
 
 if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="AI 影子沙箱执行环境")
+    parser.add_argument("-c", "--command", type=str, help="直接执行单条 Linux 指令")
+    parser.add_argument("-f", "--file", type=str, help="执行指定的本地脚本文件")
+    parser.add_argument("--keep", action="store_true", help="执行结束后保留沙箱不销毁")
+    parser.add_argument("--cleanup", action="store_true", help="强制注销并清理现有的沙箱")
+    args = parser.parse_args()
+
+    if args.cleanup:
+        destroy_sandbox()
+        exit(0)
+
     try:
         # 1. 注册沙箱
+        # 注意：如果沙箱已存在，wsl --import 会失败。这里默认按"用完即焚"流程走。
         if not setup_sandbox():
             print("\n[❌] 沙箱注册失败，程序退出。")
             exit(1)
         
-        # 2. 编写一段用于测试的 Linux 脚本（这里可以模拟你的核心业务代码）
-        test_script = """
-        echo "=== 🖥️  沙箱主机信息收集 ==="
-        echo "1. Linux 系统发行版:"
-        cat /etc/os-release | grep PRETTY_NAME
-        
-        echo "2. 内核架构信息:"
-        uname -a
-        
-        echo "3. CPU 信息:"
-        cat /proc/cpuinfo | grep "model name" | head -n 1
-        
-        echo "4. 内存信息:"
-        cat /proc/meminfo | grep MemTotal
-        
-        echo "5. 网络接口:"
-        ip addr show | grep "inet " | head -n 2
-        
-        echo "6. 当前用户:"
-        whoami
-        
-        echo ""
-        echo "=== 🕸️  网页爬取测试 ==="
-        echo "准备安装必要工具..."
-        sed -i '/bullseye-backports/d' /etc/apt/sources.list
-        # If it is a minimal image without curl and html2text, we can install them first. If it is a full image, this step will be skipped because they are already included.
-        # DEBIAN_FRONTEND=noninteractive apt-get update 2>/dev/null && DEBIAN_FRONTEND=noninteractive apt-get install curl html2text -y 2>/dev/null
-        
-        echo ""
-        echo "7. 爬取百度首页标题:"
-        curl -s https://www.baidu.com | html2text | head -n 10
-        
-        echo ""
-        echo "8. 获取 HTTP 响应头信息:"
-        curl -I -s https://www.baidu.com | head -n 5
-        
-        echo ""
-        echo "9. 测试外部 API 调用:"
-        curl -s https://api.ipify.org?format=json
-        
-        echo ""
-        echo "=== ✅ 测试完毕 ==="
-        """
-        
-        # 3. 管道无痕执行
-        stdout_data, stderr_data = execute_in_sandbox(test_script)
-        
-        print("\n[4/4] 宿主机收到沙箱回执密文:")
-        print("-" * 40)
-        print(stdout_data)
-        if stderr_data:
-            print(f"异常提示: {stderr_data}")
-        print("-" * 40)
-        
+        # 2. 执行指令
+        if args.command:
+            stdout_data, stderr_data = execute_in_sandbox(args.command)
+            if stdout_data: print(stdout_data, end="")
+            if stderr_data: print(stderr_data, file=sys.stderr, end="")
+        elif args.file:
+            with open(args.file, 'r', encoding='utf-8') as f:
+                script = f.read()
+            stdout_data, stderr_data = execute_in_sandbox(script)
+            if stdout_data: print(stdout_data, end="")
+            if stderr_data: print(stderr_data, file=sys.stderr, end="")
+        else:
+            # 交互式 REPL 模式
+            print("\n[🤖] AI 虚拟环境已就绪 (交互模式)。")
+            print("当前在隔离的沙箱环境中，文件系统修改会保留，直至沙箱销毁。")
+            print("输入指令执行，或输入 'exit'、'quit' 退出。输入 'multiline' 开启多行输入。")
+            while True:
+                try:
+                    cmd = input("AI-Env > ")
+                    if cmd.strip().lower() in ['exit', 'quit']:
+                        break
+                    elif cmd.strip().lower() == 'multiline':
+                        print("进入多行输入模式，输入 'END' 结束并执行：")
+                        lines = []
+                        while True:
+                            line = input()
+                            if line.strip() == 'END':
+                                break
+                            lines.append(line)
+                        cmd = "\n".join(lines)
+                    
+                    if not cmd.strip():
+                        continue
+                    
+                    stdout_data, stderr_data = execute_in_sandbox(cmd)
+                    if stdout_data:
+                        print(stdout_data, end="")
+                    if stderr_data:
+                        print(f"Error:\n{stderr_data}", file=sys.stderr, end="")
+                        
+                except (EOFError, KeyboardInterrupt):
+                    break
+
     except Exception as e:
         print(f"\n[❌] 发生致命错误: {str(e)}")
         print("[!] 触发紧急清理机制...")
     finally:
-        # 4. 强制抹除痕迹（无论成功与否都执行）
-        destroy_sandbox()
-        print("\n[✅] 影子沙箱闭环测试完成！")
+        # 3. 强制抹除痕迹
+        if not args.keep:
+            destroy_sandbox()
+            print("\n[✅] 影子沙箱已销毁，闭环完成！")
+        else:
+            print("\n[!] 沙箱未销毁 (--keep)，可通过运行 'python black.py --cleanup' 手动清理。")
