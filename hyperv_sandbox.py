@@ -58,24 +58,51 @@ def setup_sandbox():
     print(f"[+] 正在启动沙箱虚拟机，等待开机和网络就绪...")
     run_ps_cmd(f"Start-VM -Name '{SANDBOX_NAME}'")
     
+    import re
+    
     # 等待虚拟机启动并获取 IP 地址
     # Linux 启动和通过 DHCP 获取 IP 需要较长时间，增加重试次数
-    max_retries = 45
+    max_retries = 60
     vm_ip = None
     for i in range(max_retries):
         time.sleep(2)
         print(f"  ... 正在尝试获取 IP 地址 ({i+1}/{max_retries})", end="\r")
-        # 优化 IP 获取正则，确保拿到正确的 IPv4 地址
-        get_ip_cmd = f"(Get-VMNetworkAdapter -VMName '{SANDBOX_NAME}').IPAddresses | Where-Object {{ $_ -match '^(?:[0-9]{{1,3}}\.){{3}}[0-9]{{1,3}}$' -and $_ -notmatch '^169\.254\.' }} | Select-Object -First 1"
-        res = run_ps_cmd(get_ip_cmd, capture=True)
+        
+        # 方法1: 尝试通过 Get-VMNetworkAdapter 获取（最可靠）
+        get_ip_cmd2 = f"(Get-VMNetworkAdapter -VMName '{SANDBOX_NAME}').IPAddresses | Where-Object {{ $_ -match '^(?:[0-9]{{1,3}}\\.){{3}}[0-9]{{1,3}}$' -and $_ -notmatch '^169\\.254\\.' }} | Select-Object -First 1"
+        res = run_ps_cmd(get_ip_cmd2, capture=True)
         if res.stdout.strip():
-            vm_ip = res.stdout.strip()
-            print(f"\n[+] 成功获取沙箱 IP 地址: {vm_ip}")
-            break
+            ip_candidate = res.stdout.strip()
+            if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip_candidate):
+                vm_ip = ip_candidate
+                print(f"\n[+] 成功获取沙箱 IP 地址: {vm_ip}")
+                break
+            
+        # 方法2: 尝试通过 Get-VMGuestNetworkInterface 获取（需要集成服务）
+        get_ip_cmd1 = f"Get-VMGuestNetworkInterface -VMName '{SANDBOX_NAME}' 2>&1 | Where-Object {{ $_.IPAddresses }} | Select-Object -ExpandProperty IPAddresses -First 1"
+        res = run_ps_cmd(get_ip_cmd1, capture=True)
+        if res.stdout.strip():
+            ip_candidate = res.stdout.strip()
+            if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip_candidate):
+                vm_ip = ip_candidate
+                print(f"\n[+] 成功获取沙箱 IP 地址: {vm_ip}")
+                break
+            
+        # 方法3: 尝试通过 ARP 缓存获取
+        get_ip_cmd3 = f"arp -a | Where-Object {{ $_ -match '\\b(?:[0-9]{{1,3}}\\.){{3}}[0-9]{{1,3}}\\b' -and $_ -notmatch '^169\\.254\\.' -and $_ -notmatch '255\\.255\\.255\\.255' }} | Select-Object -First 1 | ForEach-Object {{ $_.Split()[0] }}"
+        res = run_ps_cmd(get_ip_cmd3, capture=True)
+        if res.stdout.strip():
+            ip_candidate = res.stdout.strip()
+            if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip_candidate):
+                vm_ip = ip_candidate
+                print(f"\n[+] 成功获取沙箱 IP 地址: {vm_ip}")
+                break
             
     if not vm_ip:
         print("\n[-] 无法获取虚拟机 IP 地址，可能是系统未成功启动或未连接网络。")
-        print("    建议：1. 检查基础镜像 VHDX 是否损坏。2. 打开 Hyper-V 管理器查看虚拟机是否卡在启动界面。")
+        print("    建议：1. 检查基础镜像 VHDX 是否损坏。")
+        print("          2. 打开 Hyper-V 管理器查看虚拟机是否卡在启动界面。")
+        print("          3. 确保虚拟机已连接到 Default Switch 或内部交换机。")
         return False
         
     # 等待 SSH 服务启动
